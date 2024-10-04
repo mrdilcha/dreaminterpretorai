@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dream Interpretation Chatbot</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.3/dist/tailwind.min.css" rel="stylesheet" />
+    <style>
+        body {
+            background-color: #d9f0ff;
+        }
+        .chat-message {
+            border-radius: 1rem;
+            padding: 1rem;
+            margin: 0.5rem;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+        .user-message {
+            background-color: #d1fae5;
+            align-self: flex-end;
+        }
+        .bot-message {
+            background-color: #fefcbf;
+            align-self: flex-start;
+        }
+        #sendButton:hover {
+            background: linear-gradient(90deg, #6366f1, #3b82f6);
+        }
+        #chatbox {
+            height: 60vh;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="flex flex-col items-center">
+        <h1 class="text-2xl font-bold my-5 text-gray-800">Dream Interpretation Chatbot</h1>
+        <div class="w-full max-w-2xl p-4 border border-gray-300 bg-white rounded-lg shadow-lg">
+            <div id="chatbox" class="flex flex-col items-start"></div>
+            <div class="flex flex-row my-5">
+                <input
+                    class="shadow flex-grow rounded p-2 mr-2 text-gray-800 bg-gray-200"
+                    id="messageInput"
+                    type="text"
+                    placeholder="Share your dream..."
+                />
+                <button
+                    class="bg-blue-500 text-white font-bold py-2 px-4 rounded transition duration-300 ease-in-out"
+                    id="sendButton"
+                >
+                    Interpret My Dream
+                </button>
+            </div>
+        </div>
+    </div>
+    <script>
+    const chatbox = document.getElementById("chatbox");
+    const messageInput = document.getElementById("messageInput");
+    const sendButton = document.getElementById("sendButton");
+    const chatId = crypto.randomUUID();
+
+    let receiving = false;
+    const systemPrompt = "You are a dream interpretation guide who offers empathetic and clear responses. After interpreting the user's dream, encourage them to share more by asking about key emotions, symbols, or themes present in the dream. Provide supportive and thoughtful insights to help users reflect on their experiences.";
+
+    function createMessageElement(text, alignment) {
+        const messageElement = document.createElement("div");
+        messageElement.className = `chat-message ${alignment === "left" ? "bot-message" : "user-message"}`;
+        messageElement.innerHTML = text; // Allow HTML for formatting
+        return messageElement;
+    }
+
+    function cleanResponse(text) {
+        return text
+            .replace(/\r?\n/g, ' ') // Replace newlines with spaces
+            .replace(/\s+/g, ' ') // Replace multiple spaces with a single space
+            .trim(); // Trim leading/trailing whitespace
+    }
+
+    function connectWebSocket(message) {
+        receiving = true;
+        let responseBuffer = ""; // Initialize buffer
+        const url = "wss://backend.buildpicoapps.com/api/chatbot/chat";
+        const websocket = new WebSocket(url);
+
+        websocket.addEventListener("open", () => {
+            websocket.send(
+                JSON.stringify({
+                    chatId: chatId,
+                    appId: "nice-hand",
+                    systemPrompt: systemPrompt,
+                    message: message,
+                })
+            );
+        });
+
+        const thinkingElement = createMessageElement("Thinking...", "left");
+        chatbox.appendChild(thinkingElement);
+        
+        websocket.onmessage = (event) => {
+            const interpretation = cleanResponse(event.data); // Clean the response
+            responseBuffer += interpretation + ' '; // Accumulate the response with a space
+        };
+
+        websocket.onclose = (event) => {
+            thinkingElement.remove(); // Remove "Thinking..." message
+            if (event.code !== 1000) {
+                const errorMessage = createMessageElement("Error getting response from server. Refresh the page and try again.", "left");
+                chatbox.appendChild(errorMessage);
+            } else {
+                const botMessage = createMessageElement(responseBuffer.trim(), "left"); // Trim final response
+                chatbox.appendChild(botMessage);
+            }
+            chatbox.scrollTop = chatbox.scrollHeight;
+            receiving = false;
+            responseBuffer = ""; // Reset buffer
+        };
+    }
+
+    sendButton.addEventListener("click", () => {
+        if (!receiving && messageInput.value.trim() !== "") {
+            const messageText = messageInput.value.trim();
+            messageInput.value = "";
+            const userMessage = createMessageElement(messageText, "right");
+            chatbox.appendChild(userMessage);
+            chatbox.scrollTop = chatbox.scrollHeight;
+
+            connectWebSocket(messageText);
+        }
+    });
+
+    messageInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && !receiving && messageInput.value.trim() !== "") {
+            event.preventDefault();
+            sendButton.click();
+        }
+    });
+    </script>
+    <footer class="mt-5 text-center text-gray-600 bg-gray-200 py-2">
+        <p>Made with <span class="text-red-500">❤️</span> by Charan Reddy</p>
+    </footer>
+</body>
+</html>
